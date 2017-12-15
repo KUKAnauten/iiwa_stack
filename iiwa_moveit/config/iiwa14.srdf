@@ -25,6 +25,17 @@
         <joint name="iiwa_joint_6" value="0" />
         <joint name="iiwa_joint_7" value="0" />
     </group_state>
+    <!--values need to be fixed for "valid_CartImpMode_startpoint" -->
+    <group_state name="valid_CartImpMode_startpoint" group="manipulator">
+        <joint name="iiwa_joint_1" value="-0.28472468257" />
+        <joint name="iiwa_joint_2" value="0.785718202591" />
+        <joint name="iiwa_joint_3" value="0.416700422764" />
+        <joint name="iiwa_joint_4" value="-0.811163961887" />
+        <joint name="iiwa_joint_5" value="-0.399372190237" />
+        <joint name="iiwa_joint_6" value="1.29422867298" />
+        <joint name="iiwa_joint_7" value="0.0358025729656" />
+    </group_state>
+
     <!--END EFFECTOR: Purpose: Represent information about an end effector.-->
     <end_effector name="moveit_ee" parent_link="iiwa_link_ee" group="endeffector"/>
     <!--DISABLE COLLISIONS: By default it is assumed that any link of the robot could potentially come into collision with any other link in the robot. This tag disables collision checking between a specified pair of links. -->
