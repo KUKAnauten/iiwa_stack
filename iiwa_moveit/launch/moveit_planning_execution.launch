@@ -7,6 +7,9 @@
     <!-- the "sim" argument controls whether we connect to a Simulated or Real robot. -->
     <arg name="sim" default="true" doc="If true, the robot will be simulated in Gazebo" />
     <!-- hardware_interface to use : PositionJointInterface, EffortJointInterface, VelocityJointInterface. -->
+    <!-- Planning pipeline -->
+	<arg name="pipeline" default="stomp_moveit"/>
+	
     <arg name="hardware_interface" default="PositionJointInterface"/>
     <!-- The is gonna have its nodes/topics under a namespace with the same name. -->
     <arg name="robot_name" default="iiwa"/>
