@@ -14,6 +14,7 @@
     <!-- the "sim" argument controls whether we connect to a Simulated or Real robot. -->
     <arg name="sim" default="true" doc="If true, the robot will be simulated in Gazebo" />
     <arg name="rviz" default="true" />
+    <arg name="load_robot_description" default="true"/>
     
     <!-- By default, we are not in debug mode -->
     <arg name="debug" default="false" />
@@ -56,6 +57,7 @@
         <include file="$(find iiwa_moveit)/launch/move_group.launch">
             <arg name="publish_monitored_planning_scene" value="true" />
             <!--arg name="fake_execution" value="false"/-->
+            <arg name="load_robot_description" value="$(arg load_robot_description)"/>
             <arg name="hardware_interface" value="$(arg hardware_interface)"/>
             <arg name="robot_name" value="$(arg robot_name)"/>
             <arg name="model" value="$(arg model)" />
