@@ -1,4 +1,4 @@
- /**  
+/**  
  * Copyright (C) 2016-2017 Salvatore Virga - salvo.virga@tum.de, Marco Esposito - marco.esposito@tum.de
  * Technische Universität München
  * Chair for Computer Aided Medical Procedures and Augmented Reality
@@ -28,12 +28,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import javax.inject.Inject;
+
 import org.ros.node.DefaultNodeMainExecutor;
 import org.ros.node.NodeConfiguration;
 import org.ros.node.NodeMainExecutor;
 import org.ros.time.NtpTimeProvider;
 
 import com.kuka.connectivity.motionModel.smartServo.SmartServo;
+import com.kuka.generated.ioAccess.MediaFlangeIOGroup;
 import com.kuka.roboticsAPI.applicationModel.RoboticsAPIApplication;
 import com.kuka.roboticsAPI.applicationModel.RoboticsAPIApplicationState;
 import com.kuka.roboticsAPI.deviceModel.LBR;
@@ -77,6 +80,9 @@ public abstract class ROSBaseApplication extends RoboticsAPIApplication {
 	protected List<IUserKeyBar> generalKeyBars = new ArrayList<IUserKeyBar>();
 	protected List<IUserKey> generalKeys = new ArrayList<IUserKey>();
 	protected List<IUserKeyListener> generalKeyLists = new ArrayList<IUserKeyListener>();
+    
+	@Inject
+	protected MediaFlangeIOGroup mfTouch;
 
 	protected abstract void configureNodes(URI uri);
 	protected abstract void addNodesToExecutor(NodeMainExecutor nodeExecutor);
@@ -90,20 +96,21 @@ public abstract class ROSBaseApplication extends RoboticsAPIApplication {
 	 * In order to balance the load, they alternate at *decimationCounter* % *decimation* == 0 and
 	 * *decimationCounter* % *decimation* == *decimation* / 2
 	 */
-	
+
 	// TODO : in config.txt or processData
 	protected int decimationCounter = 0; 
 	protected int controlDecimation = 8;
 
 
 	public void initialize() {
+		getLogger().info("" + mfTouch.getIOGroupName());
 		robot = getContext().getDeviceFromType(LBR.class);
 
 		// Standard configuration.
 		configuration = new iiwaConfiguration();
 		publisher = new iiwaPublisher(iiwaConfiguration.getRobotName());
 		handler = new ROSGoalReachedEventListener(publisher);
-		
+
 		// ROS initialization.
 		try {
 			URI uri = new URI(iiwaConfiguration.getMasterURI());
@@ -117,9 +124,10 @@ public abstract class ROSBaseApplication extends RoboticsAPIApplication {
 			nodeConfPublisher.setTimeProvider(iiwaConfiguration.getTimeProvider());
 			nodeConfPublisher.setNodeName(iiwaConfiguration.getRobotName() + "/iiwa_publisher");
 			nodeConfPublisher.setMasterUri(uri);
-			
+
 			// Additional configuration needed in subclasses.
 			configureNodes(uri);
+			
 		}
 		catch (Exception e) {
 			if (debug) 
@@ -134,7 +142,7 @@ public abstract class ROSBaseApplication extends RoboticsAPIApplication {
 			nodeMainExecutor.execute(publisher, nodeConfPublisher);
 			nodeMainExecutor.execute(configuration, nodeConfConfiguration);
 
-			 // Additional Nodes from subclasses.
+			// Additional Nodes from subclasses.
 			addNodesToExecutor(nodeMainExecutor); 
 
 			if (debug) 
@@ -146,11 +154,13 @@ public abstract class ROSBaseApplication extends RoboticsAPIApplication {
 			getLogger().info(e.toString());
 			return;
 		}
-		
-		 // Additional initialization from subclasses.
+
+		// Additional initialization from subclasses.
 		initializeApp();
 
 		initSuccessful = true;  // We cannot throw here.
+		
+		
 	}
 
 	public void run() {
@@ -172,13 +182,13 @@ public abstract class ROSBaseApplication extends RoboticsAPIApplication {
 		jointVelocity = configuration.getDefaultRelativeJointVelocity();
 		jointAcceleration = configuration.getDefaultRelativeJointAcceleration();
 		overrideJointAcceleration = 1.0;
-		
+
 		motion = new SmartServo(robot.getCurrentJointPosition());
 		motion.setMinimumTrajectoryExecutionTime(20e-3); // TODO : Parametrize
 		motion.setJointVelocityRel(jointVelocity);
 		motion.setJointAccelerationRel(jointAcceleration);
 		motion.setTimeoutAfterGoalReach(300); // TODO : Parametrize
-		
+
 		// Configurable toolbars to publish events on topics.
 		configuration.setupToolbars(getApplicationUI(), publisher, generalKeys, generalKeyLists, generalKeyBars);
 
@@ -201,14 +211,14 @@ public abstract class ROSBaseApplication extends RoboticsAPIApplication {
 
 		// Initialize motion.
 		toolFrame.moveAsync(motion);
-		
+
 		if (iiwaConfiguration.getTimeProvider() instanceof org.ros.time.NtpTimeProvider) {
 			((NtpTimeProvider) iiwaConfiguration.getTimeProvider()).startPeriodicUpdates(100, TimeUnit.MILLISECONDS); // TODO: update time as param
 		}
 
 		// Run what is needed before the control loop in the subclasses.
 		beforeControlLoop();
-		
+
 		running = true;
 
 		// The run loop
@@ -218,7 +228,7 @@ public abstract class ROSBaseApplication extends RoboticsAPIApplication {
 				decimationCounter++;
 
 				// This will publish the current robot state on the various ROS topics.
-				publisher.publishCurrentState(robot, motion, toolFrame);
+				publisher.publishCurrentState(robot, motion, toolFrame, mfTouch);
 
 				if ((decimationCounter % controlDecimation) == 0)
 					controlLoop();  // Perform control loop specified by subclass
@@ -239,6 +249,12 @@ public abstract class ROSBaseApplication extends RoboticsAPIApplication {
 		}
 		super.onApplicationStateChanged(state);
 	};
+
+	@Override 
+	public void dispose() { 
+		super.dispose(); 
+		cleanup(); 
+	} 
 
 	void cleanup() {
 		running = false;

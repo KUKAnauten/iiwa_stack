@@ -41,6 +41,7 @@ import org.ros.node.NodeConfiguration;
 import org.ros.node.NodeMainExecutor;
 import org.ros.node.service.ServiceResponseBuilder;
 
+
 import com.kuka.connectivity.motionModel.smartServo.ServoMotion;
 import com.kuka.connectivity.motionModel.smartServo.SmartServo;
 import com.kuka.roboticsAPI.deviceModel.JointPosition;
@@ -57,10 +58,15 @@ import com.kuka.roboticsAPI.motionModel.controlModeModel.PositionControlMode;
  */
 public class ROSSmartServo extends ROSBaseApplication {
 
+		
+		
+
 	private Lock configureSmartServoLock = new ReentrantLock();
 
 	private iiwaMessageGenerator helper; // Helper class to generate iiwa_msgs from current robot state.
 	private iiwaSubscriber subscriber; // IIWARos Subscriber.
+	protected iiwaPublisher publisher;
+
 
 	// Configuration of the subscriber ROS node.
 	private NodeConfiguration nodeConfSubscriber;
@@ -75,6 +81,7 @@ public class ROSSmartServo extends ROSBaseApplication {
 	
 	private ConfigureSmartServoRequest latestSmartServoRequest;
 
+	
 	@Override
 	protected void configureNodes(URI uri) {
 		// Configuration for the Subscriber.
@@ -158,13 +165,17 @@ public class ROSSmartServo extends ROSBaseApplication {
 		// Execute the subscriber node.
 		nodeMainExecutor.execute(subscriber, nodeConfSubscriber);
 	}
-
+	
 	@Override
 	protected void initializeApp() {
+		
+		
+		
 		helper = new iiwaMessageGenerator(iiwaConfiguration.getRobotName());
 		jp = new JointPosition(robot.getJointCount());
 		jv = new JointPosition(robot.getJointCount());
 		jointDisplacement = new JointPosition(robot.getJointCount());
+		
 	}
 
 	public static class UnsupportedControlModeException extends RuntimeException {
@@ -173,6 +184,7 @@ public class ROSSmartServo extends ROSBaseApplication {
 		public UnsupportedControlModeException(String message) { super(message); }
 		public UnsupportedControlModeException(String message, Throwable cause) { super(message, cause); }
 		public UnsupportedControlModeException(Throwable cause) { super(cause); }
+		
 	}
 	
 	/**
@@ -423,6 +435,7 @@ public class ROSSmartServo extends ROSBaseApplication {
 
 	@Override
 	protected void controlLoop() {
+
 		if (subscriber.currentCommandType != null) {
 			configureSmartServoLock.lock();
 
@@ -495,4 +508,5 @@ public class ROSSmartServo extends ROSBaseApplication {
 			configureSmartServoLock.unlock();
 		}
 	}
+
 }
