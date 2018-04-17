@@ -71,7 +71,7 @@
     <visual>
       <origin xyz="-0.33 0 1.42" rpy="0 0 0"/>
       <geometry>
-        <box size="0.66 0.28 1.40"/>
+        <box size="0.655 0.28 1.40"/>
       </geometry>
       <material name="aluminium"/>
     </visual>
@@ -123,7 +123,7 @@
     <collision>
       <origin xyz="-0.33 0 1.42" rpy="0 0 0"/>
       <geometry>
-        <box size="0.66 0.3 1.40"/>
+        <box size="0.655 0.3 1.40"/>
       </geometry>
       <material name="aluminium"/>
     </collision>
