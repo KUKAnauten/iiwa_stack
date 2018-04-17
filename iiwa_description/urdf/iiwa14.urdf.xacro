@@ -7,7 +7,7 @@
   
   <xacro:arg name="hardware_interface" default="PositionJointInterface"/>
   <xacro:arg name="robot_name" default="iiwa"/>
-  <xacro:arg name="origin_xyz" default="0 0 1.92"/>
+  <xacro:arg name="origin_xyz" default="0 0 1.71"/>
   <xacro:arg name="origin_rpy" default="0 1.570796327 0"/>
   
   <!-- Fix to world just for testing -->
