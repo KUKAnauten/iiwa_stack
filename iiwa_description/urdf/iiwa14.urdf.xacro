@@ -7,137 +7,14 @@
   
   <xacro:arg name="hardware_interface" default="PositionJointInterface"/>
   <xacro:arg name="robot_name" default="iiwa"/>
-  <xacro:arg name="origin_xyz" default="0 0 1.92"/>
-  <xacro:arg name="origin_rpy" default="0 1.570796327 0"/>
+  <xacro:arg name="origin_xyz" default="0 0 0"/>
+  <xacro:arg name="origin_rpy" default="0 0 0"/>
   
   <!-- Fix to world just for testing -->
-  <material name="wood">
-    <color rgba="0.89 0.58 0.47 0.3"/>
-  </material>
-  <material name="aluminium">
-    <color rgba="0.7 0.7 0.7 0.4"/>
-  </material>
-
   <link name="world"/>
-
-  <joint name="world_table" type="fixed">
-    <parent link="world" />
-    <child link="table" />
-  </joint>
-
-  <!-- Create table on which iiwa is standing -->
-  <link name="table">
-    <inertial>
-      <origin xyz="0.0 0.0 0.5" rpy="0 0 0"/>
-      <mass value="15"/>
-      <inertia ixx="0.05"  ixy="0"  ixz="0" iyy="0.06" iyz="0" izz="0.03" />
-    </inertial>
-
-    <visual>
-      <origin xyz="0 0 0.70" rpy="0 0 0"/>
-      <geometry>
-        <box size="1.5 1.5 0.04"/>
-      </geometry>
-      <material name="wood"/>
-    </visual>
-    <visual>
-      <origin xyz="0.66 0.66 0.34" rpy="0 0 0"/>
-      <geometry>
-        <box size="0.08 0.08 0.68"/>
-      </geometry>
-      <material name="aluminium"/>
-    </visual>
-    <visual>
-      <origin xyz="-0.66 0.66 0.34" rpy="0 0 0"/>
-      <geometry>
-        <box size="0.08 0.08 0.68"/>
-      </geometry>
-      <material name="aluminium"/>
-    </visual>
-    <visual>
-      <origin xyz="0.66 -0.66 0.34" rpy="0 0 0"/>
-      <geometry>
-        <box size="0.08 0.08 0.68"/>
-      </geometry>
-      <material name="aluminium"/>
-    </visual>
-    <visual>
-      <origin xyz="-0.66 -0.66 0.34" rpy="0 0 0"/>
-      <geometry>
-        <box size="0.08 0.08 0.68"/>
-      </geometry>
-      <material name="aluminium"/>
-    </visual>
-    <visual>
-      <origin xyz="-0.33 0 1.42" rpy="0 0 0"/>
-      <geometry>
-        <box size="0.66 0.28 1.40"/>
-      </geometry>
-      <material name="aluminium"/>
-    </visual>
-    <visual>
-      <origin xyz="0.05 0 0.769" rpy="0 0.785398163 0"/>
-      <geometry>
-        <box size="0.32 0.32 0.16  "/>
-      </geometry>
-      <material name="aluminium"/>
-    </visual>
-    
-
-
-    <collision>
-      <origin xyz="0 0 0.70" rpy="0 0 0"/>
-      <geometry>
-        <box size="1.5 1.5 0.04"/>
-      </geometry>
-      <material name="wood"/>
-    </collision>
-    <collision>
-      <origin xyz="0.66 0.66 0.34" rpy="0 0 0"/>
-      <geometry>
-        <box size="0.08 0.08 0.68"/>
-      </geometry>
-      <material name="aluminium"/>
-    </collision>
-    <collision>
-      <origin xyz="-0.66 0.66 0.34" rpy="0 0 0"/>
-      <geometry>
-        <box size="0.08 0.08 0.68"/>
-      </geometry>
-      <material name="aluminium"/>
-    </collision>
-    <collision>
-      <origin xyz="0.66 -0.66 0.34" rpy="0 0 0"/>
-      <geometry>
-        <box size="0.08 0.08 0.68"/>
-      </geometry>
-      <material name="aluminium"/>
-    </collision>
-    <collision>
-      <origin xyz="-0.66 -0.66 0.34" rpy="0 0 0"/>
-      <geometry>
-        <box size="0.08 0.08 0.68"/>
-      </geometry>
-      <material name="aluminium"/>
-    </collision>
-    <collision>
-      <origin xyz="-0.33 0 1.42" rpy="0 0 0"/>
-      <geometry>
-        <box size="0.66 0.3 1.40"/>
-      </geometry>
-      <material name="aluminium"/>
-    </collision>
-    <collision>
-      <origin xyz="0.05 0 0.769" rpy="0 0.785398163 0"/>
-      <geometry>
-        <box size="0.33 0.33 0.17  "/>
-      </geometry>
-      <material name="aluminium"/>
-    </collision>
-  </link>
   
   <!--iiwa-->
-  <xacro:iiwa14 hardware_interface="$(arg hardware_interface)" robot_name="$(arg robot_name)" parent="table">
+  <xacro:iiwa14 hardware_interface="$(arg hardware_interface)" robot_name="$(arg robot_name)" parent="world">
     <origin xyz="$(arg origin_xyz)" rpy="$(arg origin_rpy)" />
   </xacro:iiwa14>
   
