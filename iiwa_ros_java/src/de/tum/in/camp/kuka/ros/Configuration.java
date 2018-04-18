@@ -27,17 +27,15 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.InetAddress;
-import java.net.NetworkInterface;
-import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 
 import org.ros.exception.ParameterNotFoundException;
@@ -59,7 +57,7 @@ import com.kuka.roboticsAPI.uiModel.userKeys.UserKeyEvent;
 /**
  * Utility class to get configuration at startup from the config.txt file or from ROS params in the ROS param server.
  */
-public class iiwaConfiguration extends AbstractNodeMain {
+public class Configuration extends AbstractNodeMain {
 
 	// Name to use to build the name of the ROS topics
 	private static Map<String, String> config;
@@ -70,7 +68,9 @@ public class iiwaConfiguration extends AbstractNodeMain {
 	private static String robotIp;
 	private static boolean staticConfigurationSuccessful;
 	private static boolean ntpWithHost;
-	private static TimeProvider timeProvider;
+	
+	private TimeProvider timeProvider;
+	private ScheduledExecutorService ntpExecutorService = null;
 
 	private ConnectedNode node;
 	private ParameterTree params;
@@ -78,7 +78,7 @@ public class iiwaConfiguration extends AbstractNodeMain {
 	// It is used to wait until we are connected to the ROS master and params are available
 	private Semaphore initSemaphore = new Semaphore(0);
 
-	public iiwaConfiguration() {
+	public Configuration() {
 		checkConfiguration();
 	}
 
@@ -93,7 +93,7 @@ public class iiwaConfiguration extends AbstractNodeMain {
 
 	private static void parseConfigFile() {
 		config = new HashMap<String, String>();
-		BufferedReader br = new BufferedReader(new InputStreamReader(iiwaConfiguration.class.getResourceAsStream("config.txt")));
+		BufferedReader br = new BufferedReader(new InputStreamReader(Configuration.class.getResourceAsStream("config.txt")));
 		try {
 			String line = null;
 			while((line = br.readLine()) != null) {
@@ -112,8 +112,10 @@ public class iiwaConfiguration extends AbstractNodeMain {
 		parseConfigFile(); //TODO : use KUKA's process data?
 
 		// Obtain name of the robot from config file
-		robotName = config.get("robot_name"); // TODO: it would be better to move this to the Sunrise project, so that it's unique for each robot
+		robotName = config.get("robot_name");
 		System.out.println("Robot name: " + robotName);
+		robotIp = config.get("robot_ip");
+		System.out.println("IP from configuration: " + robotIp); // automatic discovery not reliable with x66
 
 		// Obtain if NTP server is used from config file
 		ntpWithHost  = config.get("ntp_with_host").equals("true");
@@ -123,35 +125,6 @@ public class iiwaConfiguration extends AbstractNodeMain {
 		masterPort = config.get("master_port");
 		masterUri = "http://" + masterIp + ":" + masterPort;
 		System.out.println("Master URI: " + masterUri);
-
-		String[] master_components = masterIp.split("\\.");
-		String localhostIp = null;
-		Enumeration<NetworkInterface> ifaces = null;
-		try {
-			ifaces = NetworkInterface.getNetworkInterfaces();
-		} catch (SocketException e1) {
-			e1.printStackTrace();
-			return;
-		}
-		boolean localhostIpFound = false;
-		while(!localhostIpFound && ifaces.hasMoreElements()) {
-			NetworkInterface n = (NetworkInterface) ifaces.nextElement();
-			Enumeration<InetAddress> ee = n.getInetAddresses();
-			while (ee.hasMoreElements()) {
-				localhostIp = ((InetAddress) ee.nextElement()).getHostAddress();
-				String[] components = localhostIp.split("\\.");
-
-				boolean matches = components[0].equals(master_components[0])
-						&& components[1].equals(master_components[1])
-						&& components[2].equals(master_components[2]);
-				if (matches) {
-					localhostIpFound = true;
-					break;
-				}
-			}
-		}
-		robotIp = localhostIp;
-		System.out.println("Robot IP: " + robotIp);
 
 		staticConfigurationSuccessful = true;
 	}
@@ -223,6 +196,7 @@ public class iiwaConfiguration extends AbstractNodeMain {
 	@Override
 	public void onStart(final ConnectedNode connectedNode) {
 		node = connectedNode;
+		Logger.setRosLogger(node.getLog());
 		initSemaphore.release();
 	}
 
@@ -293,7 +267,7 @@ public class iiwaConfiguration extends AbstractNodeMain {
 	 * 
 	 * @return the time provider to use, NtpTimeProvider or WallTimeProvider
 	 */
-	public static TimeProvider getTimeProvider() {
+	public TimeProvider getTimeProvider() {
 		if (timeProvider == null)
 			setupTimeProvider();
 		return timeProvider;
@@ -304,11 +278,12 @@ public class iiwaConfiguration extends AbstractNodeMain {
 	 * 
 	 * @return the configured time provider
 	 */
-	private static TimeProvider setupTimeProvider() {
+	private TimeProvider setupTimeProvider() {
 		checkConfiguration();
 		if (ntpWithHost) {
 			try {
-				NtpTimeProvider provider = new NtpTimeProvider(InetAddress.getByName(masterIp), Executors.newScheduledThreadPool(1));
+				ntpExecutorService = Executors.newScheduledThreadPool(1);
+				NtpTimeProvider provider = new NtpTimeProvider(InetAddress.getByName(masterIp), ntpExecutorService);
 				timeProvider = provider;
 			} catch (UnknownHostException e) {
 				System.err.println("Could not setup NTP time provider!");
@@ -500,6 +475,22 @@ public class iiwaConfiguration extends AbstractNodeMain {
 			return null;
 		}
 		return args;
+	}
+	
+	public void cleanup() {
+		if (ntpWithHost) {
+			
+			try {
+				((NtpTimeProvider) timeProvider).stopPeriodicUpdates();
+			} catch (NullPointerException e) {
+				// can happen if there is an exception somewhere
+			}
+			if (ntpExecutorService != null) {
+				ntpExecutorService.shutdownNow();
+				ntpExecutorService = null;
+			}
+			Logger.info("stopped NTP periodic updates");
+		}
 	}
 
 }

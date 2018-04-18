@@ -21,22 +21,21 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-package de.tum.in.camp.kuka.ros;
+package de.tum.in.camp.kuka.ros.app;
 
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import javax.inject.Inject;
-
+import org.ros.address.BindAddress;
 import org.ros.node.DefaultNodeMainExecutor;
 import org.ros.node.NodeConfiguration;
 import org.ros.node.NodeMainExecutor;
 import org.ros.time.NtpTimeProvider;
 
 import com.kuka.connectivity.motionModel.smartServo.SmartServo;
-import com.kuka.generated.ioAccess.MediaFlangeIOGroup;
+import com.kuka.connectivity.motionModel.smartServoLIN.SmartServoLIN;
 import com.kuka.roboticsAPI.applicationModel.RoboticsAPIApplication;
 import com.kuka.roboticsAPI.applicationModel.RoboticsAPIApplicationState;
 import com.kuka.roboticsAPI.deviceModel.LBR;
@@ -45,6 +44,12 @@ import com.kuka.roboticsAPI.geometricModel.Tool;
 import com.kuka.roboticsAPI.uiModel.userKeys.IUserKey;
 import com.kuka.roboticsAPI.uiModel.userKeys.IUserKeyBar;
 import com.kuka.roboticsAPI.uiModel.userKeys.IUserKeyListener;
+
+import de.tum.in.camp.kuka.ros.ControlModeHandler;
+import de.tum.in.camp.kuka.ros.GoalReachedEventListener;
+import de.tum.in.camp.kuka.ros.Configuration;
+import de.tum.in.camp.kuka.ros.iiwaPublisher;
+import de.tum.in.camp.kuka.ros.Logger;
 
 /*
  * Base application for all ROS-Sunrise applications. 
@@ -59,17 +64,16 @@ public abstract class ROSBaseApplication extends RoboticsAPIApplication {
 	protected static final String toolFrameIDSuffix = "_link_ee";
 	protected ObjectFrame toolFrame;
 	protected SmartServo motion;
-	protected double jointVelocity;
-	protected double jointAcceleration;
-	protected double overrideJointAcceleration;
-	protected ROSGoalReachedEventListener handler;
+	protected SmartServoLIN linearMotion;
+	protected ControlModeHandler controlModeHandler;
+	protected GoalReachedEventListener handler;
 
 	protected boolean initSuccessful;
 	protected boolean debug;
 	protected boolean running;
 
 	protected iiwaPublisher publisher;
-	protected iiwaConfiguration configuration;
+	protected Configuration configuration;
 
 	// ROS Configuration and Node execution objects.
 	protected NodeConfiguration nodeConfPublisher;
@@ -80,9 +84,6 @@ public abstract class ROSBaseApplication extends RoboticsAPIApplication {
 	protected List<IUserKeyBar> generalKeyBars = new ArrayList<IUserKeyBar>();
 	protected List<IUserKey> generalKeys = new ArrayList<IUserKey>();
 	protected List<IUserKeyListener> generalKeyLists = new ArrayList<IUserKeyListener>();
-    
-	@Inject
-	protected MediaFlangeIOGroup mfTouch;
 
 	protected abstract void configureNodes(URI uri);
 	protected abstract void addNodesToExecutor(NodeMainExecutor nodeExecutor);
@@ -101,38 +102,40 @@ public abstract class ROSBaseApplication extends RoboticsAPIApplication {
 	protected int decimationCounter = 0; 
 	protected int controlDecimation = 8;
 
-
 	public void initialize() {
-		getLogger().info("" + mfTouch.getIOGroupName());
+		Logger.setSunriseLogger(getLogger());
+		
 		robot = getContext().getDeviceFromType(LBR.class);
 
 		// Standard configuration.
-		configuration = new iiwaConfiguration();
-		publisher = new iiwaPublisher(iiwaConfiguration.getRobotName());
-		handler = new ROSGoalReachedEventListener(publisher);
+		configuration = new Configuration();
+		publisher = new iiwaPublisher(Configuration.getRobotName(), configuration);
 
 		// ROS initialization.
 		try {
-			URI uri = new URI(iiwaConfiguration.getMasterURI());
+			URI uri = new URI(Configuration.getMasterURI());
 
-			nodeConfConfiguration = NodeConfiguration.newPublic(iiwaConfiguration.getRobotIp());
-			nodeConfConfiguration.setTimeProvider(iiwaConfiguration.getTimeProvider());
-			nodeConfConfiguration.setNodeName(iiwaConfiguration.getRobotName() + "/iiwa_configuration");
-			nodeConfConfiguration.setMasterUri(uri);
-
-			nodeConfPublisher = NodeConfiguration.newPublic(iiwaConfiguration.getRobotIp());
-			nodeConfPublisher.setTimeProvider(iiwaConfiguration.getTimeProvider());
-			nodeConfPublisher.setNodeName(iiwaConfiguration.getRobotName() + "/iiwa_publisher");
+			nodeConfConfiguration = NodeConfiguration.newPublic(Configuration.getRobotIp());
+			nodeConfConfiguration.setTimeProvider(configuration.getTimeProvider());
+			nodeConfConfiguration.setNodeName(Configuration.getRobotName() + "/iiwa_configuration");
+			nodeConfConfiguration.setMasterUri(uri);			
+			nodeConfConfiguration.setTcpRosBindAddress(BindAddress.newPublic(30000));
+			nodeConfConfiguration.setXmlRpcBindAddress(BindAddress.newPublic(30001));			
+			
+			nodeConfPublisher = NodeConfiguration.newPublic(Configuration.getRobotIp());
+			nodeConfPublisher.setTimeProvider(configuration.getTimeProvider());
+			nodeConfPublisher.setNodeName(Configuration.getRobotName() + "/iiwa_publisher");
 			nodeConfPublisher.setMasterUri(uri);
+			nodeConfPublisher.setTcpRosBindAddress(BindAddress.newPublic(30002));
+			nodeConfPublisher.setXmlRpcBindAddress(BindAddress.newPublic(30003));
 
 			// Additional configuration needed in subclasses.
 			configureNodes(uri);
-			
 		}
 		catch (Exception e) {
 			if (debug) 
-				getLogger().info("Node Configuration failed. " + "Please check the ROS master IP in the Sunrise configuration.");
-			getLogger().info(e.toString());
+				Logger.info("Node Configuration failed. " + "Please check the ROS master IP in the Sunrise configuration.");
+			Logger.info(e.toString());
 			return;
 		}
 
@@ -146,48 +149,37 @@ public abstract class ROSBaseApplication extends RoboticsAPIApplication {
 			addNodesToExecutor(nodeMainExecutor); 
 
 			if (debug) 
-				getLogger().info("ROS Node Executor initialized.");
+				Logger.info("ROS Node Executor initialized.");
 		}
 		catch(Exception e) {
 			if (debug) 
-				getLogger().info("ROS Node Executor initialization failed.");
-			getLogger().info(e.toString());
+				Logger.info("ROS Node Executor initialization failed.");
+			Logger.info(e.toString());
 			return;
 		}
+		// END of ROS initialization.
+
 
 		// Additional initialization from subclasses.
 		initializeApp();
 
 		initSuccessful = true;  // We cannot throw here.
-		
-		
 	}
 
 	public void run() {
 		if (!initSuccessful) {
 			throw new RuntimeException("Could not init the RoboticApplication successfully");
 		}
-
 		try {
-			getLogger().info("Waiting for ROS Master to connect... ");
+			Logger.info("Waiting for ROS Master to connect... ");
 			configuration.waitForInitialization();
-			getLogger().info("ROS Master is connected!");
+			Logger.info("ROS Master is connected!");
 		} catch (InterruptedException e1) {
 			e1.printStackTrace();
 			return;
 		}
 
-		getLogger().info("Using time provider: " + iiwaConfiguration.getTimeProvider().getClass().getSimpleName());
-
-		jointVelocity = configuration.getDefaultRelativeJointVelocity();
-		jointAcceleration = configuration.getDefaultRelativeJointAcceleration();
-		overrideJointAcceleration = 1.0;
-
-		motion = new SmartServo(robot.getCurrentJointPosition());
-		motion.setMinimumTrajectoryExecutionTime(20e-3); // TODO : Parametrize
-		motion.setJointVelocityRel(jointVelocity);
-		motion.setJointAccelerationRel(jointAcceleration);
-		motion.setTimeoutAfterGoalReach(300); // TODO : Parametrize
+		Logger.info("Using time provider: " + configuration.getTimeProvider().getClass().getSimpleName());
 
 		// Configurable toolbars to publish events on topics.
 		configuration.setupToolbars(getApplicationUI(), publisher, generalKeys, generalKeyLists, generalKeyBars);
@@ -195,25 +187,29 @@ public abstract class ROSBaseApplication extends RoboticsAPIApplication {
 		// Tool to attach, robot's flange will be used if no tool has been defined.
 		String toolFromConfig = configuration.getToolName();
 		if (toolFromConfig != "") {
-			getLogger().info("Attaching tool " + toolFromConfig);
+			Logger.info("Attaching tool " + toolFromConfig);
 			tool = (Tool)getApplicationData().createFromTemplate(toolFromConfig);
 			tool.attachTo(robot.getFlange());
 			toolFrameID = toolFromConfig + toolFrameIDSuffix;
 			toolFrame = tool.getFrame("/" + toolFrameID);
 		} else {
-			getLogger().info("No tool attached. Using flange.");
-			toolFrameID = iiwaConfiguration.getRobotName() + toolFrameIDSuffix;
+			Logger.info("No tool attached. Using flange.");
+			toolFrameID = Configuration.getRobotName() + toolFrameIDSuffix;
 			toolFrame = robot.getFlange();
 		}
 
+		controlModeHandler = new ControlModeHandler(robot, tool, toolFrame, publisher, configuration);
+		motion = controlModeHandler.createSmartServoMotion();
 		// Publish joint state?
 		publisher.setPublishJointStates(configuration.getPublishJointStates());
 
 		// Initialize motion.
 		toolFrame.moveAsync(motion);
+		// Hook the GoalReachedEventHandler
+		motion.getRuntime().setGoalReachedEventHandler(handler);
 
-		if (iiwaConfiguration.getTimeProvider() instanceof org.ros.time.NtpTimeProvider) {
-			((NtpTimeProvider) iiwaConfiguration.getTimeProvider()).startPeriodicUpdates(100, TimeUnit.MILLISECONDS); // TODO: update time as param
+		if (configuration.getTimeProvider() instanceof org.ros.time.NtpTimeProvider) {
+			((NtpTimeProvider) configuration.getTimeProvider()).startPeriodicUpdates(100, TimeUnit.MILLISECONDS); // TODO: update time as param
 		}
 
 		// Run what is needed before the control loop in the subclasses.
@@ -222,26 +218,33 @@ public abstract class ROSBaseApplication extends RoboticsAPIApplication {
 		running = true;
 
 		// The run loop
-		getLogger().info("Starting the ROS control loop...");
+		Logger.info("Starting the ROS control loop...");
 		try {
 			while(running) { 
 				decimationCounter++;
 
 				// This will publish the current robot state on the various ROS topics.
-				publisher.publishCurrentState(robot, motion, toolFrame, mfTouch);
+				publisher.publishCurrentState(robot, motion, toolFrame);
 
 				if ((decimationCounter % controlDecimation) == 0)
 					controlLoop();  // Perform control loop specified by subclass
 			} 
 		}
 		catch (Exception e) {
-			getLogger().info("ROS control loop aborted. " + e.toString());
+			Logger.info("ROS control loop aborted. " + e.toString());
 		} finally {
 			cleanup();
-			getLogger().info("ROS control loop has ended. Application terminated.");
+			Logger.info("ROS control loop has ended. Application terminated.");
 		}
 	}
-
+	
+	@Override
+	public void dispose() {
+		configuration.cleanup();
+		cleanup();
+		super.dispose();
+	}
+	
 	@Override 
 	public void onApplicationStateChanged(RoboticsAPIApplicationState state) {
 		if (state == RoboticsAPIApplicationState.STOPPING) {
@@ -250,19 +253,13 @@ public abstract class ROSBaseApplication extends RoboticsAPIApplication {
 		super.onApplicationStateChanged(state);
 	};
 
-	@Override 
-	public void dispose() { 
-		super.dispose(); 
-		cleanup(); 
-	} 
-
 	void cleanup() {
 		running = false;
 		if (nodeMainExecutor != null) {
-			getLogger().info("Stopping ROS nodes");
+			Logger.info("Stopping ROS nodes");
 			nodeMainExecutor.shutdown();	
 			nodeMainExecutor.getScheduledExecutorService().shutdownNow();
 		}
-		getLogger().info("Stopped ROS nodes");
+		Logger.info("Stopped ROS nodes");
 	}
 }
