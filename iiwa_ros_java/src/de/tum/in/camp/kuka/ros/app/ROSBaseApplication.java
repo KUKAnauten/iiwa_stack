@@ -28,6 +28,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import javax.inject.Inject;
+
 import org.ros.address.BindAddress;
 import org.ros.node.DefaultNodeMainExecutor;
 import org.ros.node.NodeConfiguration;
@@ -36,6 +38,7 @@ import org.ros.time.NtpTimeProvider;
 
 import com.kuka.connectivity.motionModel.smartServo.SmartServo;
 import com.kuka.connectivity.motionModel.smartServoLIN.SmartServoLIN;
+import com.kuka.generated.ioAccess.MediaFlangeIOGroup;
 import com.kuka.roboticsAPI.applicationModel.RoboticsAPIApplication;
 import com.kuka.roboticsAPI.applicationModel.RoboticsAPIApplicationState;
 import com.kuka.roboticsAPI.deviceModel.LBR;
@@ -84,6 +87,9 @@ public abstract class ROSBaseApplication extends RoboticsAPIApplication {
 	protected List<IUserKeyBar> generalKeyBars = new ArrayList<IUserKeyBar>();
 	protected List<IUserKey> generalKeys = new ArrayList<IUserKey>();
 	protected List<IUserKeyListener> generalKeyLists = new ArrayList<IUserKeyListener>();
+	
+	@Inject
+	protected MediaFlangeIOGroup mediaFlange;
 
 	protected abstract void configureNodes(URI uri);
 	protected abstract void addNodesToExecutor(NodeMainExecutor nodeExecutor);
@@ -224,7 +230,7 @@ public abstract class ROSBaseApplication extends RoboticsAPIApplication {
 				decimationCounter++;
 
 				// This will publish the current robot state on the various ROS topics.
-				publisher.publishCurrentState(robot, motion, toolFrame);
+				publisher.publishCurrentState(robot, motion, toolFrame, mediaFlange);
 
 				if ((decimationCounter % controlDecimation) == 0)
 					controlLoop();  // Perform control loop specified by subclass
