@@ -4,12 +4,12 @@
   <xacro:include filename="$(find iiwa_description)/urdf/materials.xacro" />
   <!--Import the lbr iiwa macro -->
   <xacro:include filename="$(find iiwa_description)/urdf/iiwa14.xacro"/>
-  
+
   <xacro:arg name="hardware_interface" default="PositionJointInterface"/>
   <xacro:arg name="robot_name" default="iiwa"/>
   <xacro:arg name="origin_xyz" default="0 0 1.71"/>
   <xacro:arg name="origin_rpy" default="0 1.570796327 0"/>
-  
+
   <!-- Fix to world just for testing -->
   <material name="wood">
     <color rgba="0.89 0.58 0.47 0.3"/>
@@ -82,7 +82,7 @@
       </geometry>
       <material name="aluminium"/>
     </visual>
-    
+
 
 
     <collision>
@@ -135,10 +135,18 @@
       <material name="aluminium"/>
     </collision>
   </link>
-  
+
   <!--iiwa-->
   <xacro:iiwa14 hardware_interface="$(arg hardware_interface)" robot_name="$(arg robot_name)" parent="table">
     <origin xyz="$(arg origin_xyz)" rpy="$(arg origin_rpy)" />
   </xacro:iiwa14>
-  
+
+  <joint name="world_sunrise_world" type="fixed">
+    <origin xyz="$(arg origin_xyz)" rpy="0 0 0" />
+    <parent link="world" />
+    <child link="sunrise_world" />
+  </joint>
+
+  <link name="sunrise_world" />
+
 </robot>
